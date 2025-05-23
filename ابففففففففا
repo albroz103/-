@@ -1,0 +1,88 @@
+#include <iostream>
+#include <variant>
+#include <vector>
+#include <type_traits>
+#include <functional>
+#include <cmath>
+
+using namespace std;
+
+// Visitor لمعالجة الأنواع المختلفة في الـ variant
+struct ValueVisitor {
+    void operator()(int x) const {
+        cout << "Integer: " << x << endl;
+    }
+    void operator()(double x) const {
+        cout << "Double: " << sin(x) << endl;
+    }
+    void operator()(const string& x) const {
+        cout << "String: " << x.size() << " chars" << endl;
+    }
+};
+
+// Concept لتقييد الأنواع الرقمية
+template<typename T>
+concept Numeric = is_arithmetic_v<T>;
+
+// Factory Design Pattern مع استثناءات مخصصة
+class DataFactory {
+public:
+    template<Numeric T>
+    static variant<int, double, string> create(T value) {
+        if constexpr (is_integral_v<T>) {
+            return static_cast<int>(value * 2);
+        } else {
+            return sqrt(value);
+        }
+    }
+
+    static variant<int, double, string> create(const string& s) {
+        if (s.empty()) throw invalid_argument("Empty string!");
+        return "Processed: " + s;
+    }
+};
+
+// Template Metaprogramming لحساب فيبوناتشي في وقت الترجمة
+template<int N>
+struct Fibonacci {
+    static constexpr int value = Fibonacci<N-1>::value + Fibonacci<N-2>::value;
+};
+
+template<>
+struct Fibonacci<0> {
+    static constexpr int value = 0;
+};
+
+template<>
+struct Fibonacci<1> {
+    static constexpr int value = 1;
+};
+
+int main() {
+    // استخدام الـ variant مع الـ visitor
+    vector<variant<int, double, string>> data;
+    data.emplace_back(DataFactory::create(5));
+    data.emplace_back(DataFactory::create(3.14));
+    data.emplace_back(DataFactory::create("Hello"));
+
+    for (const auto& item : data) {
+        visit(ValueVisitor{}, item);
+    }
+
+    // استخدام الـ concept مع الـ static_assert
+    static_assert(Numeric<int>, "int يجب أن يكون رقميًا");
+    static_assert(!Numeric<string>, "string لا يجب أن يكون رقميًا");
+
+    // حساب فيبوناتشي في وقت الترجمة
+    constexpr int fib10 = Fibonacci<10>::value;
+    cout << "\nFibonacci(10) = " << fib10 << endl;
+
+    // Lambda مع capture init و template parameter
+    auto advanced_lambda = [](auto x) requires Numeric<decltype(x)> {
+        return x * x + 2*x + 1;
+    };
+
+    cout << "Lambda(5.5): " << advanced_lambda(5.5) << endl;
+
+    return 0;
+}
