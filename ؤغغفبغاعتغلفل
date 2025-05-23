@@ -1,0 +1,65 @@
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <algorithm>
+#include <thread>
+#include <mutex>
+
+using namespace std;
+
+// قالب (Template) لإنشاء مصفوفة ديناميكية مع مؤشر ذكي
+template <typename T>
+class DynamicArray {
+private:
+    unique_ptr<T[]> data;
+    size_t size;
+    mutex mtx;
+
+public:
+    DynamicArray(size_t s) : size(s), data(make_unique<T[]>(s)) {}
+
+    // مشغل () للوصول العنصري مع تأمين الخيط (Thread-safe)
+    T& operator()(size_t index) {
+        lock_guard<mutex> lock(mtx);
+        if (index >= size) throw out_of_range("Index out of range");
+        return data[index];
+    }
+
+    // تطبيق خوارزمية STL مع Lambda Expression
+    void transform(function<void(T&)> func) {
+        lock_guard<mutex> lock(mtx);
+        for_each(&data[0], &data[size], func);
+    }
+};
+
+// دالة مساعدة لإنشاء مؤشر ذكي مشترك
+auto create_shared_array(int size) {
+    return make_shared<DynamicArray<double>>(size);
+}
+
+int main() {
+    const int N = 5;
+    auto arr = create_shared_array(N);
+
+    // تهيئة المصفوفة باستخدام الخيوط (Threads)
+    vector<thread> threads;
+    for (int i = 0; i < N; ++i) {
+        threads.emplace_back([&arr, i] {
+            arr->operator()(i) = i * 3.14;
+        });
+    }
+
+    for (auto& t : threads) t.join();
+
+    // تطبيق تحويل على كل عنصر
+    arr->transform([](double& x) {
+        x = sqrt(x) + pow(x, 2);
+    });
+
+    // طباعة النتائج
+    for (int i = 0; i < N; ++i) {
+        cout << "Element " << i << ": " << arr->operator()(i) << endl;
+    }
+
+    return 0;
+}
